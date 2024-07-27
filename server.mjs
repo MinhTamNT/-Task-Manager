@@ -1,19 +1,20 @@
+import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { ApolloServer } from "apollo-server-express";
+import bodyParser from "body-parser";
+import cloudinary from "cloudinary";
+import cors from "cors";
+import "dotenv/config";
 import express from "express";
 import http from "http";
-import { makeExecutableSchema } from "@graphql-tools/schema";
-import { ApolloServer } from "apollo-server-express"; // Updated import
-import { typeDefs } from "./schemas/schemas.js";
-import { resolvers } from "./resolvers/resolvers.js";
-import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
-import cors from "cors";
-import bodyParser from "body-parser";
 import mongoose from "mongoose";
-import "dotenv/config";
-import cloudinary from "cloudinary";
+import { resolvers } from "./resolvers/resolvers.js";
+import { typeDefs } from "./schemas/schemas.js";
+import { OAuth2Client } from "google-auth-library";
 const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 4000;
-
+const router = express.Router();
 const schema = makeExecutableSchema({ typeDefs, resolvers });
 
 const server = new ApolloServer({
@@ -21,15 +22,12 @@ const server = new ApolloServer({
   plugins: [ApolloServerPluginDrainHttpServer({ httpServer })],
 });
 
-// Use applyMiddleware to connect ApolloServer to Express
 async function startApolloServer() {
   await server.start();
-  server.applyMiddleware({ app, path: "/graphql" });
+  server.applyMiddleware({ app, path: "/" });
 }
 
 startApolloServer();
-
-// connect database
 
 const URL = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@task-manager.p7773m1.mongodb.net/?retryWrites=true&w=majority&appName=task-manager`;
 
@@ -38,16 +36,49 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(async () => {
-    console.log("Connection database successfully");
+  .then(() => {
+    console.log("Connection to database successful");
   });
 
-//configuration cloudinary
 cloudinary.config({
   secure: true,
 });
-app.use(cors(), bodyParser.json());
+
+const client = new OAuth2Client(process.env.CLIENT_ID);
+async function verifyGoogleToken(token) {
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    return payload;
+  } catch (error) {
+    console.error("Error verifying Google token:", error);
+    throw new Error("Invalid token");
+  }
+}
+
+app.use(cors());
+app.use(bodyParser.json());
+app.use(async (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  console.log({ token });
+  if (!token) {
+    next();
+  }
+
+  try {
+    const user = await verifyGoogleToken(token);
+    console.log(user);
+    req.user = user; // Store user info in req object for use in routes
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+});
 
 httpServer.listen({ port: PORT }, () => {
-  console.log(`🚀 Server ready at http://localhost:${PORT}/graphql`);
+  console.log(`🚀 Server ready at http://localhost:${PORT}/`);
 });

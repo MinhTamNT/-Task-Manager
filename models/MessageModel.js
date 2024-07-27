@@ -13,13 +13,8 @@ const messageSchema = new mongoose.Schema(
       ref: "ConversationModel",
       required: true,
     },
-    userReceive: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "UserModel",
-      required: true,
-    },
   },
-  { timestamps }
+  { timestamps: true }
 );
 
 const MessageModel = mongoose.model("MessageModel", messageSchema);

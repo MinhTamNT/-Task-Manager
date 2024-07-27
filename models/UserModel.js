@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import cloudinary from "cloudinary";
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -8,18 +7,8 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["user", "admin"], default: "user" },
     projects: [{ type: mongoose.Schema.Types.ObjectId, ref: "ProjectModel" }],
   },
-  { timestamps }
+  { timestamps: true }
 );
-const UserModel = mongoose.Schema("UserModel", userSchema);
-userSchema.pre("save", async function (next) {
-  if (this.avatar && this.isModified("avatar")) {
-    try {
-      const avatar = await cloudinary.v2.uploader.upload(this.avatar);
-      this.avatar = avatar.secure_url;
-    } catch (error) {
-      console.log(error);
-    }
-  }
-  next();
-});
+const UserModel = mongoose.model("UserModel", userSchema);
+
 export default UserModel;

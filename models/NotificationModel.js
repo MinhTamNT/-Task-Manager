@@ -7,7 +7,7 @@ const notificationSchema = new mongoose.Schema(
     project: { type: mongoose.Schema.Types.ObjectId, ref: "ProjectModel" },
     task: { type: mongoose.Schema.Types.ObjectId, ref: "TaskModel" },
   },
-  { timestamps }
+  { timestamps: true }
 );
 
 const NotificationModel = mongoose.model(
