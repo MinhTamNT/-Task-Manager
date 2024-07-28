@@ -6,6 +6,15 @@ const projectSchema = new mongoose.Schema(
     description: {
       type: String,
     },
+    authorId: {
+      type: String,
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ["Active", "In Proccess", "Done"],
+      default: "Active",
+    },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "UserModel" }],
   },
   { timestamps: true }
