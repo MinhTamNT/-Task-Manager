@@ -91,7 +91,6 @@ export const resolvers = {
       const notification = new NotificationModel({
         userId,
         message: `You have been invited to join the project ${project.name}`,
-        createdAt: new Date(),
       });
       await notification.save();
 
@@ -119,7 +118,6 @@ export const resolvers = {
       await project.save();
 
       if (status === "ACCEPTED") {
-        // Add user to project members
         const user = await UserModel.findOne({ uuid: userId });
         if (!user) throw new Error("User not found");
 
@@ -131,7 +129,6 @@ export const resolvers = {
         invitationStatusChanged: invitation,
       });
 
-      // Create notification
       const notification = new NotificationModel({
         userId,
         message: `Your invitation to the project ${

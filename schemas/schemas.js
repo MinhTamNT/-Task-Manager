@@ -3,9 +3,11 @@ export const typeDefs = `#graphql
  scalar Date
 
 type User {
+    id:ID
     uuid: String
     name: String
     email: String
+    image: String
 }
 
 type Project {  
