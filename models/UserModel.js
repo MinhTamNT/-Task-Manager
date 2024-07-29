@@ -3,10 +3,9 @@ const userSchema = new mongoose.Schema(
   {
     uuid: { type: String, required: true },
     name: { type: String, required: true },
-    avatar: { type: String },
+    image: { type: String },
     email: { type: String, required: true },
     role: { type: String, enum: ["user", "admin"], default: "user" },
-    projects: [{ type: mongoose.Schema.Types.ObjectId, ref: "ProjectModel" }],
   },
   { timestamps: true }
 );

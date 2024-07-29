@@ -16,10 +16,10 @@ const taskSchema = new mongoose.Schema(
       ref: "ProjectModel",
       required: true,
     },
+    subTasks: [{ type: mongoose.Schema.Types.ObjectId, ref: "Task" }], // Reference to other tasks
   },
   { timestamps: true }
 );
 
 const Task = mongoose.model("Task", taskSchema);
-
-module.exports = Task;
+export default Task;

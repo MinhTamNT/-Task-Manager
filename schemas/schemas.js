@@ -1,23 +1,65 @@
 export const typeDefs = `#graphql
+
+ scalar Date
+
 type User {
-    uuid:String,
-    name:String,
-    email :String
+    uuid: String
+    name: String
+    email: String
 }
+
 type Project {  
-    id:String,
-    name:String,
-    description : String,
-    authorId: String,
-    author:User,
-    status : String
-    members : [User]
+    id: String
+    name: String
+    description: String
+    authorId: String
+    author: User
+    status: String
+    members: [User]
+    invitations: [Invitation]
 }
+
+type Invitation {
+    userId: String
+    status: InvitationStatus
+}
+
+enum InvitationStatus {
+    PENDING
+    ACCEPTED
+    REJECTED
+}
+
+type Notification {
+    id: ID!
+    message: String!
+    createdAt: Date!
+}
+
 type Query {
-    project : [Project]
+    project: [Project]
+    getProjectById(id: ID!): Project
+    notifications: [Notification]
+    searchUsersByName(name: String!): [User]
 }
+
 type Mutation {
-    addUser (uuid:String!,name:String!,email:String!) :User,
-    addProject (name:String! ) : Project
+    addUser(uuid: String!, name: String!, email: String!, image: String!): User
+    addProject(name: String!, description: String): Project
+    deleteProject(id: ID!): Message
+    inviteUser(projectId: ID!, userId: ID!): Project
+    updateInvitationStatus(projectId: ID!, userId: ID!, status: InvitationStatus!): User
+    createNotification(message: String!): Notification
 }
+
+type Message {
+    message: String
+}
+
+type Subscription {
+    invitationReceived(projectId: ID!): Project
+    invitationStatusChanged(projectId: ID!, userId: ID!): Invitation
+    notificationCreated: Notification
+}
+
 `;
