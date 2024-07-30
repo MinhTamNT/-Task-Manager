@@ -30,15 +30,14 @@ export const resolvers = {
       return await ProjectModel.findById(id);
     },
     notifications: async (parent, args, context) => {
-      return await NotificationModel.find({ userId: context?.sub }).sort({
+      const res = await NotificationModel.find({ userId: context?.sub }).sort({
         createdAt: "desc",
       });
+      console.log(res);
+      return res;
     },
     searchUsersByName: async (parent, { name }) => {
-      const users = await UserModel.find({
-        name: { $regex: name, $options: "i" },
-      });
-      return users;
+      return await UserModel.find({ name: { $regex: name, $options: "i" } });
     },
   },
   Project: {
@@ -51,7 +50,9 @@ export const resolvers = {
   },
   Mutation: {
     addUser: async (parent, args) => {
-      const foundUser = await UserModel.findOne({ name: args.name });
+      const foundUser = await UserModel.findOne({
+        name: args.name,
+      });
       if (!foundUser) {
         const newUser = new UserModel(args);
         await newUser.save();
@@ -80,9 +81,8 @@ export const resolvers = {
         if (!project) throw new Error("Project not found");
 
         const existingMember = project.members.find(
-          (member) => member._id === userId
+          (member) => member._id.toString() === userId
         );
-        console.log("find", existingMember);
         if (existingMember) throw new Error("User is already a member");
 
         const existingInvitation = project.invitations.find(
@@ -92,7 +92,7 @@ export const resolvers = {
         if (existingInvitation)
           throw new Error("User already has a pending invitation");
 
-        const user = await UserModel.findOne({ _id: userId });
+        const user = await UserModel.findOne({ uuid: userId });
         if (!user) throw new Error("User not found");
 
         project.invitations.push({ userId, status: "PENDING" });
@@ -123,7 +123,7 @@ export const resolvers = {
       if (!project) throw new Error("Project not found");
 
       const invitation = project.invitations.find(
-        (invite) => invite.userId === userId
+        (invite) => invite.userId.toString() === userId
       );
       if (!invitation) throw new Error("Invitation not found");
 
@@ -131,7 +131,7 @@ export const resolvers = {
       await project.save();
 
       if (status === "ACCEPTED") {
-        const user = await UserModel.findOne({ uuid: userId });
+        const user = await UserModel.findById(userId);
         if (!user) throw new Error("User not found");
 
         project.members.push(user);
@@ -167,6 +167,19 @@ export const resolvers = {
       pubsub.publish(NOTIFICATION_CREATED, {
         notificationCreated: notification,
       });
+
+      return notification;
+    },
+    markNotificationAsRead: async (parent, { id }, context) => {
+      const notification = await NotificationModel.findById(id);
+      if (!notification) throw new Error("Notification not found");
+
+      if (notification.userId.toString() !== context?.sub) {
+        throw new Error("Unauthorized");
+      }
+
+      notification.read = true;
+      await notification.save();
 
       return notification;
     },

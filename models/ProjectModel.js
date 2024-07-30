@@ -18,7 +18,10 @@ const projectSchema = new mongoose.Schema(
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "UserModel" }],
     invitations: [
       {
-        userId: { type: mongoose.Schema.Types.ObjectId, ref: "UserModel" },
+        userId: {
+          type: String,
+          required: true,
+        },
         status: {
           type: String,
           enum: ["PENDING", "ACCEPTED", "REJECTED"],
