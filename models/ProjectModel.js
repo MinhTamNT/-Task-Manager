@@ -12,13 +12,24 @@ const projectSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Active", "In Proccess", "Done"],
+      enum: ["Active", "In Process", "Done"],
       default: "Active",
     },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "UserModel" }],
+    invitations: [
+      {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "UserModel" },
+        status: {
+          type: String,
+          enum: ["PENDING", "ACCEPTED", "REJECTED"],
+          default: "PENDING",
+        },
+      },
+    ],
   },
   { timestamps: true }
 );
+
 const ProjectModel = mongoose.model("ProjectModel", projectSchema);
 
 export default ProjectModel;

@@ -5,6 +5,7 @@ import NotificationModel from "../models/NotificationModel.js";
 import { PubSub } from "graphql-subscriptions";
 
 const pubsub = new PubSub();
+const PROJECT_UPDATED = "PROJECT_UPDATED";
 const INVITATION_RECEIVED = "INVITATION_RECEIVED";
 const INVITATION_STATUS_CHANGED = "INVITATION_STATUS_CHANGED";
 const NOTIFICATION_CREATED = "NOTIFICATION_CREATED";
@@ -45,7 +46,7 @@ export const resolvers = {
       return await UserModel.findOne({ uuid: parent.authorId });
     },
     invitations: async (parent) => {
-      return null;
+      return parent.invitations;
     },
   },
   Mutation: {
@@ -74,32 +75,44 @@ export const resolvers = {
       return { message: "Project deleted successfully" };
     },
     inviteUser: async (parent, { projectId, userId }, context) => {
-      const project = await ProjectModel.findById(projectId);
-      if (!project) throw new Error("Project not found");
+      try {
+        const project = await ProjectModel.findById(projectId);
+        if (!project) throw new Error("Project not found");
 
-      const existingMember = project.members.find(
-        (member) => member.uuid === userId
-      );
-      if (existingMember) throw new Error("User is already a member");
+        const existingMember = project.members.find(
+          (member) => member._id === userId
+        );
+        console.log("find", existingMember);
+        if (existingMember) throw new Error("User is already a member");
 
-      const user = await UserModel.findOne({ uuid: userId });
-      if (!user) throw new Error("User not found");
+        const existingInvitation = project.invitations.find(
+          (invite) =>
+            invite.userId.toString() === userId && invite.status === "PENDING"
+        );
+        if (existingInvitation)
+          throw new Error("User already has a pending invitation");
 
-      project.invitations.push({ userId, status: "PENDING" });
-      await project.save();
+        const user = await UserModel.findOne({ _id: userId });
+        if (!user) throw new Error("User not found");
 
-      const notification = new NotificationModel({
-        userId,
-        message: `You have been invited to join the project ${project.name}`,
-      });
-      await notification.save();
+        project.invitations.push({ userId, status: "PENDING" });
+        await project.save();
 
-      pubsub.publish(INVITATION_RECEIVED, { invitationReceived: project });
-      pubsub.publish(NOTIFICATION_CREATED, {
-        notificationCreated: notification,
-      });
+        const notification = new NotificationModel({
+          userId,
+          message: `You have been invited to join the project ${project.name}`,
+        });
+        await notification.save();
 
-      return project;
+        pubsub.publish(INVITATION_RECEIVED, { invitationReceived: project });
+        pubsub.publish(NOTIFICATION_CREATED, {
+          notificationCreated: notification,
+        });
+
+        return project;
+      } catch (error) {
+        console.log(error);
+      }
     },
     updateInvitationStatus: async (
       parent,
@@ -134,7 +147,6 @@ export const resolvers = {
         message: `Your invitation to the project ${
           project.name
         } has been ${status.toLowerCase()}`,
-        createdAt: new Date(),
       });
       await notification.save();
 
@@ -160,8 +172,12 @@ export const resolvers = {
     },
   },
   Subscription: {
-    invitationReceived: {
+    projectUpdated: {
       subscribe: (parent, { projectId }) =>
+        pubsub.asyncIterator([PROJECT_UPDATED]),
+    },
+    invitationReceived: {
+      subscribe: (parent, { id }) =>
         pubsub.asyncIterator([INVITATION_RECEIVED]),
     },
     invitationStatusChanged: {

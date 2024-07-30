@@ -11,7 +11,7 @@ type User {
 }
 
 type Project {  
-    id: String
+    id: ID!
     name: String
     description: String
     authorId: String
@@ -62,6 +62,7 @@ type Subscription {
     invitationReceived(projectId: ID!): Project
     invitationStatusChanged(projectId: ID!, userId: ID!): Invitation
     notificationCreated: Notification
+    projectUpdated(projectId: ID!): Project
 }
 
 `;
