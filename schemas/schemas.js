@@ -37,6 +37,7 @@ type Notification {
   message: String!
   createdAt: Date!
   read: Boolean!
+  projectId:ID
 }
 
 type Query {
@@ -51,8 +52,8 @@ type Mutation {
   addProject(name: String!, description: String): Project
   deleteProject(id: ID!): Message
   inviteUser(projectId: ID!, userId: ID!): Project
-  updateInvitationStatus(projectId: ID!, userId: ID!, status: InvitationStatus!): Invitation
-  createNotification(message: String!): Notification
+  updateInvitationStatus(projectId: ID!, status: InvitationStatus!): Invitation
+ createNotification(message: String!, projectId: ID): Notification
   markNotificationAsRead(id: ID!): Notification
 }
 

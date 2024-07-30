@@ -33,7 +33,6 @@ export const resolvers = {
       const res = await NotificationModel.find({ userId: context?.sub }).sort({
         createdAt: "desc",
       });
-      console.log(res);
       return res;
     },
     searchUsersByName: async (parent, { name }) => {
@@ -43,6 +42,9 @@ export const resolvers = {
   Project: {
     author: async (parent) => {
       return await UserModel.findOne({ uuid: parent.authorId });
+    },
+    members: async (parent) => {
+      return await UserModel.find({ _id: { $in: parent.members } });
     },
     invitations: async (parent) => {
       return parent.invitations;
@@ -68,12 +70,17 @@ export const resolvers = {
       await newProject.save();
       return newProject;
     },
-    deleteProject: async (parent, { id }, context) => {
-      const project = await ProjectModel.findById(id);
-      if (!project) throw new Error("Project not found");
-      if (project.authorId !== context?.sub) throw new Error("Unauthorized");
-      await ProjectModel.findByIdAndDelete(id);
-      return { message: "Project deleted successfully" };
+    deleteProject: async (parent, { deleteProjectId }, context) => {
+      try {
+        const project = await ProjectModel.findById(deleteProjectId);
+        if (!project) throw new Error("Project not found");
+        console.log("Project Id", project);
+        if (project.authorId !== context?.sub) throw new Error("Unauthorized");
+        await ProjectModel.findByIdAndDelete(deleteProjectId);
+        return { message: "Project deleted successfully" };
+      } catch (error) {
+        console.log(error);
+      }
     },
     inviteUser: async (parent, { projectId, userId }, context) => {
       try {
@@ -101,6 +108,7 @@ export const resolvers = {
         const notification = new NotificationModel({
           userId,
           message: `You have been invited to join the project ${project.name}`,
+          projectId, // Thêm projectId vào thông báo
         });
         await notification.save();
 
@@ -114,24 +122,19 @@ export const resolvers = {
         console.log(error);
       }
     },
-    updateInvitationStatus: async (
-      parent,
-      { projectId, userId, status },
-      context
-    ) => {
+    updateInvitationStatus: async (parent, { projectId, status }, context) => {
       const project = await ProjectModel.findById(projectId);
+      const userId = context?.sub;
       if (!project) throw new Error("Project not found");
-
       const invitation = project.invitations.find(
         (invite) => invite.userId.toString() === userId
       );
       if (!invitation) throw new Error("Invitation not found");
 
       invitation.status = status;
-      await project.save();
 
       if (status === "ACCEPTED") {
-        const user = await UserModel.findById(userId);
+        const user = await UserModel.findOne({ uuid: userId });
         if (!user) throw new Error("User not found");
 
         project.members.push(user);
@@ -147,6 +150,7 @@ export const resolvers = {
         message: `Your invitation to the project ${
           project.name
         } has been ${status.toLowerCase()}`,
+        projectId,
       });
       await notification.save();
 
@@ -156,11 +160,12 @@ export const resolvers = {
 
       return invitation;
     },
-    createNotification: async (parent, { message }, context) => {
+    createNotification: async (parent, { message, projectId }, context) => {
       const notification = new NotificationModel({
         userId: context?.sub,
         message,
         createdAt: new Date(),
+        projectId, // Thêm projectId vào thông báo
       });
       await notification.save();
 
