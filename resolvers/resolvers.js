@@ -30,10 +30,9 @@ export const resolvers = {
       return await ProjectModel.findById(id);
     },
     notifications: async (parent, args, context) => {
-      const res = await NotificationModel.find({ userId: context?.sub }).sort({
+      return await NotificationModel.find({ userId: context?.sub }).sort({
         createdAt: "desc",
       });
-      return res;
     },
     searchUsersByName: async (parent, { name }) => {
       return await UserModel.find({ name: { $regex: name, $options: "i" } });
@@ -52,9 +51,7 @@ export const resolvers = {
   },
   Mutation: {
     addUser: async (parent, args) => {
-      const foundUser = await UserModel.findOne({
-        name: args.name,
-      });
+      const foundUser = await UserModel.findOne({ name: args.name });
       if (!foundUser) {
         const newUser = new UserModel(args);
         await newUser.save();
@@ -74,12 +71,12 @@ export const resolvers = {
       try {
         const project = await ProjectModel.findById(deleteProjectId);
         if (!project) throw new Error("Project not found");
-        console.log("Project Id", project);
         if (project.authorId !== context?.sub) throw new Error("Unauthorized");
         await ProjectModel.findByIdAndDelete(deleteProjectId);
         return { message: "Project deleted successfully" };
       } catch (error) {
-        console.log(error);
+        console.error(error);
+        throw new Error("Error deleting project");
       }
     },
     inviteUser: async (parent, { projectId, userId }, context) => {
@@ -87,17 +84,17 @@ export const resolvers = {
         const project = await ProjectModel.findById(projectId);
         if (!project) throw new Error("Project not found");
 
-        const existingMember = project.members.find(
-          (member) => member._id.toString() === userId
-        );
-        if (existingMember) throw new Error("User is already a member");
+        if (project.members.includes(userId)) {
+          throw new Error("User is already a member");
+        }
 
         const existingInvitation = project.invitations.find(
           (invite) =>
             invite.userId.toString() === userId && invite.status === "PENDING"
         );
-        if (existingInvitation)
+        if (existingInvitation) {
           throw new Error("User already has a pending invitation");
+        }
 
         const user = await UserModel.findOne({ uuid: userId });
         if (!user) throw new Error("User not found");
@@ -108,7 +105,7 @@ export const resolvers = {
         const notification = new NotificationModel({
           userId,
           message: `You have been invited to join the project ${project.name}`,
-          projectId, // Thêm projectId vào thông báo
+          projectId,
         });
         await notification.save();
 
@@ -119,74 +116,91 @@ export const resolvers = {
 
         return project;
       } catch (error) {
-        console.log(error);
+        console.error(error);
+        throw new Error("Error inviting user");
       }
     },
     updateInvitationStatus: async (parent, { projectId, status }, context) => {
-      const project = await ProjectModel.findById(projectId);
-      const userId = context?.sub;
-      if (!project) throw new Error("Project not found");
-      const invitation = project.invitations.find(
-        (invite) => invite.userId.toString() === userId
-      );
-      if (!invitation) throw new Error("Invitation not found");
+      try {
+        const project = await ProjectModel.findById(projectId);
+        const userId = context?.sub;
+        if (!project) throw new Error("Project not found");
 
-      invitation.status = status;
+        const invitation = project.invitations.find(
+          (invite) => invite.userId.toString() === userId
+        );
+        if (!invitation) throw new Error("Invitation not found");
 
-      if (status === "ACCEPTED") {
-        const user = await UserModel.findOne({ uuid: userId });
-        if (!user) throw new Error("User not found");
+        invitation.status = status;
 
-        project.members.push(user);
-        await project.save();
+        if (status === "ACCEPTED") {
+          const user = await UserModel.findOne({ uuid: userId });
+          if (!user) throw new Error("User not found");
+
+          project.members.push(user);
+          await project.save();
+        }
+
+        pubsub.publish(INVITATION_STATUS_CHANGED, {
+          invitationStatusChanged: { invitation, projectId },
+        });
+
+        const notification = new NotificationModel({
+          userId,
+          message: `Your invitation to the project ${
+            project.name
+          } has been ${status.toLowerCase()}`,
+          projectId,
+        });
+        await notification.save();
+
+        pubsub.publish(NOTIFICATION_CREATED, {
+          notificationCreated: notification,
+        });
+
+        return invitation;
+      } catch (error) {
+        console.error(error);
+        throw new Error("Error updating invitation status");
       }
-
-      pubsub.publish(INVITATION_STATUS_CHANGED, {
-        invitationStatusChanged: invitation,
-      });
-
-      const notification = new NotificationModel({
-        userId,
-        message: `Your invitation to the project ${
-          project.name
-        } has been ${status.toLowerCase()}`,
-        projectId,
-      });
-      await notification.save();
-
-      pubsub.publish(NOTIFICATION_CREATED, {
-        notificationCreated: notification,
-      });
-
-      return invitation;
     },
     createNotification: async (parent, { message, projectId }, context) => {
-      const notification = new NotificationModel({
-        userId: context?.sub,
-        message,
-        createdAt: new Date(),
-        projectId, // Thêm projectId vào thông báo
-      });
-      await notification.save();
+      try {
+        const notification = new NotificationModel({
+          userId: context?.sub,
+          message,
+          createdAt: new Date(),
+          projectId,
+        });
+        await notification.save();
 
-      pubsub.publish(NOTIFICATION_CREATED, {
-        notificationCreated: notification,
-      });
+        pubsub.publish(NOTIFICATION_CREATED, {
+          notificationCreated: notification,
+        });
 
-      return notification;
+        return notification;
+      } catch (error) {
+        console.error(error);
+        throw new Error("Error creating notification");
+      }
     },
     markNotificationAsRead: async (parent, { id }, context) => {
-      const notification = await NotificationModel.findById(id);
-      if (!notification) throw new Error("Notification not found");
+      try {
+        const notification = await NotificationModel.findById(id);
+        if (!notification) throw new Error("Notification not found");
 
-      if (notification.userId.toString() !== context?.sub) {
-        throw new Error("Unauthorized");
+        if (notification.userId.toString() !== context?.sub) {
+          throw new Error("Unauthorized");
+        }
+
+        notification.read = true;
+        await notification.save();
+
+        return notification;
+      } catch (error) {
+        console.error(error);
+        throw new Error("Error marking notification as read");
       }
-
-      notification.read = true;
-      await notification.save();
-
-      return notification;
     },
   },
   Subscription: {
@@ -195,11 +209,11 @@ export const resolvers = {
         pubsub.asyncIterator([PROJECT_UPDATED]),
     },
     invitationReceived: {
-      subscribe: (parent, { id }) =>
+      subscribe: (parent, { projectId }) =>
         pubsub.asyncIterator([INVITATION_RECEIVED]),
     },
     invitationStatusChanged: {
-      subscribe: (parent, { projectId, userId }) =>
+      subscribe: (parent, { projectId }) =>
         pubsub.asyncIterator([INVITATION_STATUS_CHANGED]),
     },
     notificationCreated: {

@@ -53,7 +53,7 @@ type Mutation {
   deleteProject(id: ID!): Message
   inviteUser(projectId: ID!, userId: ID!): Project
   updateInvitationStatus(projectId: ID!, status: InvitationStatus!): Invitation
- createNotification(message: String!, projectId: ID): Notification
+  createNotification(message: String!, projectId: ID): Notification
   markNotificationAsRead(id: ID!): Notification
 }
 
@@ -63,7 +63,7 @@ type Message {
 
 type Subscription {
   invitationReceived(projectId: ID!): Project
-  invitationStatusChanged(projectId: ID!, userId: ID!): Invitation
+  invitationStatusChanged(projectId: ID!): Invitation
   notificationCreated: Notification
   projectUpdated(projectId: ID!): Project
 }
