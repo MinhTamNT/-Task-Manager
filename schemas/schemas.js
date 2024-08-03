@@ -20,6 +20,15 @@ type Project {
   invitations: [Invitation]
 }
 
+type Task {
+  id: ID
+  title: String
+  description: String
+  assignee: [User]
+  dueDate: Date
+  status: String
+}
+
 type Invitation {
   userId: String
   status: InvitationStatus
@@ -45,11 +54,14 @@ type Query {
   getProjectById(id: ID!): Project
   notifications: [Notification]
   searchUsersByName(name: String!): [User]
+  getTaskByProject(projectId:ID!) : [Task]
 }
 
 type Mutation {
   addUser(uuid: String!, name: String!, email: String!, image: String!): User
   addProject(name: String!, description: String): Project
+  addTask( title: String! description: String ,assignedTo:[ID!] ,dueDate: Date , status: String , project: ID!): Task
+  deleteTask(id: ID!): Message
   deleteProject(id: ID!): Message
   inviteUser(projectId: ID!, userId: ID!): Project
   updateInvitationStatus(projectId: ID!, status: InvitationStatus!): Invitation

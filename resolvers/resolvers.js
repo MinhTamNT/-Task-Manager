@@ -3,6 +3,7 @@ import ProjectModel from "../models/ProjectModel.js";
 import UserModel from "../models/UserModel.js";
 import NotificationModel from "../models/NotificationModel.js";
 import { PubSub } from "graphql-subscriptions";
+import Task from "../models/TaskModel.js";
 
 const pubsub = new PubSub();
 const PROJECT_UPDATED = "PROJECT_UPDATED";
@@ -37,6 +38,18 @@ export const resolvers = {
     searchUsersByName: async (parent, { name }) => {
       return await UserModel.find({ name: { $regex: name, $options: "i" } });
     },
+    getTaskByProject: async (parent, { projectId }) => {
+      try {
+        const tasks = await Task.find({ project: projectId }).sort({
+          createdAt: "desc",
+        });
+        console.log("Fetched tasks:", tasks);
+        return tasks;
+      } catch (error) {
+        console.error("Error fetching tasks:", error);
+        throw new Error("Error fetching tasks");
+      }
+    },
   },
   Project: {
     author: async (parent) => {
@@ -49,6 +62,17 @@ export const resolvers = {
       return parent.invitations;
     },
   },
+  Task: {
+    assignee: async (parent) => {
+      try {
+        return await UserModel.find({ _id: { $in: parent.assignedTo } });
+      } catch (error) {
+        console.error("Error fetching assignees:", error);
+        throw new Error("Error fetching assignees");
+      }
+    },
+  },
+
   Mutation: {
     addUser: async (parent, args) => {
       const foundUser = await UserModel.findOne({ name: args.name });
@@ -77,6 +101,26 @@ export const resolvers = {
       } catch (error) {
         console.error(error);
         throw new Error("Error deleting project");
+      }
+    },
+    addTask: async (
+      parent,
+      { title, description, assignedTo, dueDate, status, project }
+    ) => {
+      try {
+        const task = new Task({
+          title,
+          description,
+          dueDate,
+          status,
+          assignedTo,
+          project,
+        });
+        await task.save();
+        return task;
+      } catch (error) {
+        console.error(error);
+        throw new Error("Error creating task", error);
       }
     },
     inviteUser: async (parent, { projectId, userId }, context) => {
