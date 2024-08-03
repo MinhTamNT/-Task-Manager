@@ -27,6 +27,7 @@ type Task {
   assignee: [User]
   dueDate: Date
   status: String
+  project: ID
 }
 
 type Invitation {

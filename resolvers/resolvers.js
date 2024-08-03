@@ -4,6 +4,7 @@ import UserModel from "../models/UserModel.js";
 import NotificationModel from "../models/NotificationModel.js";
 import { PubSub } from "graphql-subscriptions";
 import Task from "../models/TaskModel.js";
+import { sendEmail } from "../controller/sendmail.js";
 
 const pubsub = new PubSub();
 const PROJECT_UPDATED = "PROJECT_UPDATED";
@@ -91,12 +92,13 @@ export const resolvers = {
       await newProject.save();
       return newProject;
     },
-    deleteProject: async (parent, { deleteProjectId }, context) => {
+    deleteProject: async (parent, { id }, context) => {
       try {
-        const project = await ProjectModel.findById(deleteProjectId);
+        const project = await ProjectModel.findById(id);
+        console.log(project);
         if (!project) throw new Error("Project not found");
         if (project.authorId !== context?.sub) throw new Error("Unauthorized");
-        await ProjectModel.findByIdAndDelete(deleteProjectId);
+        await ProjectModel.findByIdAndDelete(id);
         return { message: "Project deleted successfully" };
       } catch (error) {
         console.error(error);
@@ -116,7 +118,15 @@ export const resolvers = {
           assignedTo,
           project,
         });
+
         await task.save();
+        const users = await UserModel.find({ _id: { $in: assignedTo } });
+        const emails = users.map((user) => user.email);
+        const subject = `New Task Assigned: ${title}`;
+        const text = `You have been assigned a new task titled "${title}".\n\nDescription: ${description}\nDue Date: ${dueDate}\nStatus: ${status}\nProject: ${project}`;
+        for (const email of emails) {
+          await sendEmail(email, subject, text);
+        }
         return task;
       } catch (error) {
         console.error(error);
