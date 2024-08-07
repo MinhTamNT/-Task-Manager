@@ -5,12 +5,16 @@ import NotificationModel from "../models/NotificationModel.js";
 import { PubSub } from "graphql-subscriptions";
 import Task from "../models/TaskModel.js";
 import { sendEmail } from "../controller/sendmail.js";
+import ConversationModel from "../models/ConversationModel.js";
+import MessageModel from "../models/MessageModel.js";
+import { getUserByUuid } from "../helper/user.js";
 
 const pubsub = new PubSub();
 const PROJECT_UPDATED = "PROJECT_UPDATED";
 const INVITATION_RECEIVED = "INVITATION_RECEIVED";
 const INVITATION_STATUS_CHANGED = "INVITATION_STATUS_CHANGED";
 const NOTIFICATION_CREATED = "NOTIFICATION_CREATED";
+const MESSAGE_RECEIVED = "MESSAGE RECEIVED";
 
 export const resolvers = {
   Date: new GraphQLScalarType({
@@ -51,6 +55,44 @@ export const resolvers = {
         throw new Error("Error fetching tasks");
       }
     },
+    getConversationById: async (parent, { id }) => {
+      try {
+        console.log("ID", id);
+        const res = await ConversationModel.findById(id)
+          .populate("participants")
+          .populate("lastMessage");
+        console.log(res);
+        return res;
+      } catch (error) {
+        console.error("Error fetching conversation:", error);
+        throw new Error("Error fetching conversation");
+      }
+    },
+    getConversationsByUserId: async (parent, args, context) => {
+      try {
+        const user = getUserByUuid(context?.sub);
+        const userId = (await user)._id;
+        const conversations = await ConversationModel.find({
+          participants: userId,
+        })
+          .populate("participants")
+          .populate("lastMessage");
+        console.log(conversations);
+        return conversations;
+      } catch (error) {
+        console.error("Error fetching conversations for user:", error);
+        throw new Error("Error fetching conversations");
+      }
+    },
+    getMessagesByConversation: async (parent, { conversationId }) => {
+      try {
+        return await MessageModel.find({
+          conversation: conversationId,
+        }).populate("sender");
+      } catch (error) {
+        console.log(error);
+      }
+    },
   },
   Project: {
     author: async (parent) => {
@@ -73,7 +115,16 @@ export const resolvers = {
       }
     },
   },
-
+  Conversation: {
+    participants: async (parent) => {
+      try {
+        return await UserModel.find({ _id: { $in: parent.participants } });
+      } catch (error) {
+        console.error("Error fetching assignees:", error);
+        throw new Error("Error fetching assignees");
+      }
+    },
+  },
   Mutation: {
     addUser: async (parent, args) => {
       const foundUser = await UserModel.findOne({ name: args.name });
@@ -133,7 +184,7 @@ export const resolvers = {
         throw new Error("Error creating task", error);
       }
     },
-    inviteUser: async (parent, { projectId, userId }, context) => {
+    inviteUser: async (parent, { projectId, userId }) => {
       try {
         const project = await ProjectModel.findById(projectId);
         if (!project) throw new Error("Project not found");
@@ -218,10 +269,10 @@ export const resolvers = {
         throw new Error("Error updating invitation status");
       }
     },
-    createNotification: async (parent, { message, projectId }, context) => {
+    createNotification: async (parent, { message, projectId, userId }) => {
       try {
         const notification = new NotificationModel({
-          userId: context?.sub,
+          userId,
           message,
           createdAt: new Date(),
           projectId,
@@ -236,6 +287,16 @@ export const resolvers = {
       } catch (error) {
         console.error(error);
         throw new Error("Error creating notification");
+      }
+    },
+    deletedNotification: async (parent, { id }, context) => {
+      try {
+        const notify = NotificationModel.findById(id);
+        if (!notify) throw new Error("Notify not found");
+        await NotificationModel.findByIdAndDelete(id);
+        return { message: "Notiy deleted successfully" };
+      } catch (error) {
+        console.log(error);
       }
     },
     markNotificationAsRead: async (parent, { id }, context) => {
@@ -256,6 +317,48 @@ export const resolvers = {
         throw new Error("Error marking notification as read");
       }
     },
+    createConversation: async (parent, { participants }, context) => {
+      try {
+        const currentUser = await UserModel.findOne({ uuid: context?.sub });
+
+        if (!currentUser) {
+          throw new Error("User not found");
+        }
+
+        const currentUserId = currentUser._id;
+        console.log("Current User ID:", currentUserId);
+
+        const newConversation = new ConversationModel({
+          participants: [...participants, currentUserId],
+        });
+
+        await newConversation.save();
+        console.log("Conversation created successfully");
+
+        return newConversation;
+      } catch (error) {
+        console.error("Error creating conversation:", error);
+        throw new Error("Error creating conversation");
+      }
+    },
+    sendMessage: async (parent, { content, conversationId }, context) => {
+      try {
+        const newMessage = new MessageModel({
+          content,
+          sender: context?.sub,
+          conversation: conversationId,
+        });
+        await newMessage.save();
+        pubsub.publish(MESSAGE_RECEIVED, {
+          messageReceived: newMessage,
+          conversationId,
+        });
+        return newMessage;
+      } catch (error) {
+        console.error(error);
+        throw new Error("Error sending message");
+      }
+    },
   },
   Subscription: {
     projectUpdated: {
@@ -263,7 +366,7 @@ export const resolvers = {
         pubsub.asyncIterator([PROJECT_UPDATED]),
     },
     invitationReceived: {
-      subscribe: (parent, { projectId }) =>
+      subscribe: (parent, { projectId, userId }) =>
         pubsub.asyncIterator([INVITATION_RECEIVED]),
     },
     invitationStatusChanged: {
@@ -271,7 +374,12 @@ export const resolvers = {
         pubsub.asyncIterator([INVITATION_STATUS_CHANGED]),
     },
     notificationCreated: {
-      subscribe: () => pubsub.asyncIterator([NOTIFICATION_CREATED]),
+      subscribe: (parent, { userId }) =>
+        pubsub.asyncIterator([NOTIFICATION_CREATED]),
+    },
+    messageReceived: {
+      subscribe: (parent, { conversationId }) =>
+        pubsub.asyncIterator([MESSAGE_RECEIVED]),
     },
   },
 };

@@ -41,6 +41,20 @@ enum InvitationStatus {
   REJECTED
 }
 
+type Conversation {
+  id: ID!
+  participants: [User!]!
+  lastMessage: Message
+}
+
+type MessageChat {
+  id: ID!
+  content: String!
+  sender: User!
+  conversation: Conversation!
+  createdAt: Date!
+}
+
 type Notification {
   id: ID!
   userId: ID!
@@ -56,6 +70,9 @@ type Query {
   notifications: [Notification]
   searchUsersByName(name: String!): [User]
   getTaskByProject(projectId:ID!) : [Task]
+  getConversationById(id: ID!): Conversation
+  getMessagesByConversation(conversationId: ID!): [MessageChat]
+  getConversationsByUserId  : [Conversation]
 }
 
 type Mutation {
@@ -68,6 +85,10 @@ type Mutation {
   updateInvitationStatus(projectId: ID!, status: InvitationStatus!): Invitation
   createNotification(message: String!, projectId: ID): Notification
   markNotificationAsRead(id: ID!): Notification
+  sendMessage(content: String!, conversationId: ID!): Message
+  createConversation(participants: [ID!]!): Conversation
+  deletedNotification (id:ID!) :Message
+ 
 }
 
 type Message {
@@ -79,6 +100,7 @@ type Subscription {
   invitationStatusChanged(projectId: ID!): Invitation
   notificationCreated: Notification
   projectUpdated(projectId: ID!): Project
+  messageReceived(conversationId: ID!): Message
 }
 
 
